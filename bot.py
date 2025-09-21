@@ -239,14 +239,7 @@ https://instagram.com/tv/DEF456/
                 return
             
             # Show post info
-            info_text = f"""
-📊 **اطلاعات پست:**
-👤 کاربر: @{post_info['username']}
-❤️ لایک: {post_info['likes']:,}
-💬 کامنت: {post_info['comments']:,}
-📅 تاریخ: {post_info['date']}
-🎬 نوع: {'ویدیو' if post_info['is_video'] else 'عکس'}
-            """
+            info_text = f"" ""
             
             if post_info['is_video'] and post_info['video_view_count']:
                 info_text += f"👀 بازدید: {post_info['video_view_count']:,}\n"
@@ -264,15 +257,7 @@ https://instagram.com/tv/DEF456/
                 return
             
             # Show final info with downloaded data
-            final_info = f"""
-📊 **پست دانلود شد:**
-👤 کاربر: @{post_info['username']}
-❤️ لایک: {post_info['likes']:,}
-💬 کامنت: {post_info['comments']:,}
-📅 تاریخ: {post_info['date']}
-🎬 نوع: {'ویدیو' if post_info['is_video'] else 'عکس'}
-📁 فایل‌ها: {len(file_paths)} عدد
-            """
+            final_info = f"" ""
             
             if post_info['is_video'] and post_info['video_view_count']:
                 final_info += f"👀 بازدید: {post_info['video_view_count']:,}\n"

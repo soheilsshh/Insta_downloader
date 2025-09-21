@@ -65,7 +65,7 @@ class InstagramDownloader:
     
     def download_post(self, url: str, download_path: str = "downloads") -> Tuple[bool, str, list, dict]:
         """
-        Download Instagram post content with metadata
+        Download Instagram post content with caption metadata
         
         Returns:
             (success, message, file_paths, post_info)
@@ -78,36 +78,27 @@ class InstagramDownloader:
             if not shortcode:
                 return False, "❌ نمی‌توان کد پست را استخراج کرد", [], {}
             
-            # Create download directory
-            os.makedirs(download_path, exist_ok=True)
+            # Create unique download directory for this post
+            target_dir = os.path.normpath(os.path.join(download_path, shortcode))
+            os.makedirs(target_dir, exist_ok=True)
             
             # Get post
             post = instaloader.Post.from_shortcode(self.loader.context, shortcode)
             
-            # Step 1: Download media content first
-            logger.info(f"Step 1: Downloading media content for {shortcode}")
+            # Download post to target_dir (ensure no subdirectories are created)
+            self.loader.dirname_pattern = target_dir
+            self.loader.filename_pattern = "{shortcode}"
+            self.loader.download_post(post, target=target_dir)
+            
+            # Get downloaded files
             file_paths = []
+            for file in os.listdir(target_dir):
+                full_path = os.path.normpath(os.path.join(target_dir, file))
+                if os.path.isfile(full_path) and file.endswith(('.jpg', '.jpeg', '.png', '.mp4', '.mov')):
+                    file_paths.append(full_path)
+                    logger.info(f"Found file: {full_path}")
             
-            # Download media files directly
-            if post.is_video:
-                # Download video
-                video_url = post.video_url
-                if video_url:
-                    video_path = os.path.join(download_path, f"{shortcode}_video.mp4")
-                    if self._download_file(video_url, video_path):
-                        file_paths.append(video_path)
-                        logger.info(f"Downloaded video: {video_path}")
-            else:
-                # Download images
-                for i, media_url in enumerate(post.get_isvideos()):
-                    if media_url:
-                        image_path = os.path.join(download_path, f"{shortcode}_image_{i}.jpg")
-                        if self._download_file(media_url, image_path):
-                            file_paths.append(image_path)
-                            logger.info(f"Downloaded image: {image_path}")
-            
-            # Step 2: Download and save metadata
-            logger.info(f"Step 2: Saving metadata for {shortcode}")
+            # Save metadata (only caption)
             post_info = {
                 'shortcode': shortcode,
                 'username': post.owner_username,
@@ -122,27 +113,19 @@ class InstagramDownloader:
             
             # Save metadata to JSON file
             import json
-            metadata_path = os.path.join(download_path, f"{shortcode}_metadata.json")
+            metadata_path = os.path.normpath(os.path.join(target_dir, f"{shortcode}_metadata.json"))
             with open(metadata_path, 'w', encoding='utf-8') as f:
                 json.dump(post_info, f, ensure_ascii=False, indent=2)
             logger.info(f"Saved metadata: {metadata_path}")
             
-            # Step 3: Verify all files exist
-            logger.info(f"Step 3: Verifying downloaded files")
-            verified_files = []
-            for file_path in file_paths:
-                if os.path.exists(file_path):
-                    verified_files.append(file_path)
-                    logger.info(f"Verified file: {file_path}")
-                else:
-                    logger.warning(f"File not found: {file_path}")
-            
-            if verified_files:
-                return True, f"✅ پست با موفقیت دانلود شد\n📁 {len(verified_files)} فایل", verified_files, post_info
+            if file_paths:
+                return True, f"✅ پست با موفقیت دانلود شد\n📁 {len(file_paths)} فایل", file_paths, post_info
             else:
+                logger.error(f"No files found in {target_dir} after download.")
                 return False, "❌ هیچ فایلی دانلود نشد", [], {}
                 
         except instaloader.exceptions.InstaloaderException as e:
+            logger.error(f"Instaloader error: {e}")
             if "Login required" in str(e):
                 return False, "❌ این پست خصوصی است و نیاز به ورود دارد", [], {}
             elif "Not found" in str(e):
@@ -152,77 +135,7 @@ class InstagramDownloader:
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
             return False, f"❌ خطای غیرمنتظره: {str(e)}", [], {}
-    
-    def download_post_direct(self, url: str, download_path: str = "downloads") -> Tuple[bool, str, list]:
-        """
-        Direct download method using post URLs
-        """
-        try:
-            if not self.is_valid_instagram_url(url):
-                return False, "❌ لینک اینستاگرام نامعتبر است", []
-            
-            shortcode = self.extract_shortcode(url)
-            if not shortcode:
-                return False, "❌ نمی‌توان کد پست را استخراج کرد", []
-            
-            # Create download directory
-            os.makedirs(download_path, exist_ok=True)
-            
-            # Get post
-            post = instaloader.Post.from_shortcode(self.loader.context, shortcode)
-            
-            file_paths = []
-            
-            # Download media files directly
-            if post.is_video:
-                # Download video
-                video_url = post.video_url
-                if video_url:
-                    video_path = os.path.join(download_path, f"{shortcode}_video.mp4")
-                    self._download_file(video_url, video_path)
-                    if os.path.exists(video_path):
-                        file_paths.append(video_path)
-                        logger.info(f"Downloaded video: {video_path}")
-            else:
-                # Download images
-                for i, url in enumerate(post.get_isvideos()):
-                    if url:
-                        file_path = os.path.join(download_path, f"{shortcode}_image_{i}.jpg")
-                        self._download_file(url, file_path)
-                        if os.path.exists(file_path):
-                            file_paths.append(file_path)
-                            logger.info(f"Downloaded image: {file_path}")
-            
-            if file_paths:
-                return True, f"✅ پست با موفقیت دانلود شد\n📁 {len(file_paths)} فایل", file_paths
-            else:
-                return False, "❌ هیچ فایلی دانلود نشد", []
-                
-        except Exception as e:
-            logger.error(f"Direct download error: {e}")
-            return False, f"❌ خطا در دانلود مستقیم: {str(e)}", []
-    
-    def _download_file(self, url: str, file_path: str) -> bool:
-        """
-        Download a single file from URL
-        """
-        try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-            
-            response = requests.get(url, headers=headers)
-            response.raise_for_status()
-            
-            with open(file_path, 'wb') as f:
-                f.write(response.content)
-            
-            logger.info(f"Downloaded file: {file_path}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to download file from {url}: {e}")
-            return False
-        
+
     def get_post_info(self, url: str) -> Tuple[bool, str, dict]:
         """
         Get post information without downloading
